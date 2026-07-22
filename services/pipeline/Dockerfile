@@ -12,6 +12,15 @@ COPY src ./src
 # --localizer-checkpoint) points at a checkpoint — see cli.py and
 # ../../../CLAUDE.md's "ML-based people counting" / "Zone-level
 # localization" sections.
+#
+# Install the CPU-only torch build explicitly first: this container never
+# has GPU access (there's no CUDA passthrough into a Docker container, on
+# any host), but PyPI's default linux/aarch64 torch wheel bundles the full
+# NVIDIA CUDA stack (cudnn/cublas/nccl/triton/...) anyway — multiple
+# gigabytes of downloads for libraries that would sit unused. Once this is
+# satisfied, the extras install below sees torch's version requirement
+# already met and won't re-resolve it.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -e ".[ml,localize]"
 
 ENV PIPELINE_SUB_HOST=ingest \

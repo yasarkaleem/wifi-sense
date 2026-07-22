@@ -37,6 +37,15 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Install torch (CPU-only)
+        # PyPI's default linux torch wheel bundles the full NVIDIA CUDA
+        # stack (multiple GB) even though GitHub-hosted runners have no
+        # GPU. Satisfy torch from the CPU-only index first so the extras
+        # install below doesn't re-resolve it — see the same fix in
+        # services/pipeline/Dockerfile.
+        if: contains(matrix.extras, 'ml')
+        run: pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install ${{ matrix.path }}
         working-directory: ${{ matrix.path }}
         run: |
