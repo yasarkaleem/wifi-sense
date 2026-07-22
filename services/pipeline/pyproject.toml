@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeline"
+version = "0.1.0"
+description = "Preprocessing, feature extraction, and ML inference on CSI frames."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pyzmq>=25.0",
+]
+
+[project.optional-dependencies]
+demo = [
+    "matplotlib>=3.8",
+]
+ml = [
+    # ML people counting (pipeline/models/, pipeline/features/,
+    # scripts/train_counter.py) and its tests. Not required for
+    # presence-only deployments — see cli.py's --counter-checkpoint.
+    "torch>=2.2",
+]
+localize = [
+    # Zone-level localization (pipeline/models/localizer.py,
+    # pipeline/room.py, pipeline/calibrate.py) and its tests. Gradient
+    # boosting, not torch — independent of the "ml" extra above. Not
+    # required unless calibrating/serving zone localization — see
+    # cli.py's --localizer-checkpoint.
+    "scikit-learn>=1.4",
+    "joblib>=1.3",
+    "PyYAML>=6.0",
+]
+dev = [
+    "pytest>=8.0",
+    # Not pipeline's own dependencies: tests/test_integration_presence.py
+    # and scripts/train_counter.py spawn services/replay and
+    # services/ingest as subprocesses under this same interpreter, so
+    # their runtime deps need to be importable too.
+    "PyYAML>=6.0",
+    "jsonschema>=4.20",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "scripts"]
+testpaths = ["tests"]
+markers = [
+    "integration: spawns real replay/ingest/pipeline subprocesses (slower, cross-service)",
+]

@@ -1,0 +1,15 @@
+# Reasonable defaults for wifi-sense's esp32-csi firmware. Anything not
+# set here keeps the ESP-IDF/target-chip default — run `idf.py menuconfig`
+# for the full set of options, including this project's own "wifi-sense CSI
+# firmware" menu (role, WiFi credentials, target host, ping rate — see
+# main/Kconfig.projbuild).
+
+# CSI decoding and JSON-building use a few KB of locals per frame (see
+# main/csi_capture.c, main/frame_json.c) — the default 3.5KB main task
+# stack is too tight for that plus normal init code.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# CSI timing is sensitive to modem sleep cycling the radio on/off between
+# beacons; both roles disable power-save in code (esp_wifi_set_ps), this
+# just keeps the *default* out of the way too.
+CONFIG_ESP_WIFI_STA_DISCONNECTED_PM_ENABLE=n

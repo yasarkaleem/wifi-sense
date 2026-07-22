@@ -1,0 +1,19 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "wifi_conn.c"
+        "nvs_config.c"
+        "udp_client.c"
+        "csi_capture.c"
+        "frame_json.c"
+        "ping_sender.c"
+        "time_sync.c"
+    INCLUDE_DIRS "."
+    REQUIRES
+        esp_wifi
+        esp_event
+        esp_netif
+        nvs_flash
+        lwip
+        console
+)

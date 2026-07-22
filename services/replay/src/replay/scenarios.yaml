@@ -1,0 +1,244 @@
+# Synthetic CSI replay scenarios.
+#
+# Each scenario configures a source "radio" (subcarrier_count, channel,
+# source_mac), baseline RSSI/amplitude/phase noise, and zero or more
+# `people`. Each person's walking motion adds a localized sinusoidal
+# disturbance to the amplitude (and a smaller correlated disturbance to
+# phase) around their assigned subcarrier range, modeling periodic
+# gait-induced multipath fading. See ../../docs/csi-frame-schema.md for the
+# frame this data is packed into.
+
+scenarios:
+  empty_room:
+    description: >-
+      No people present. Baseline CSI with sensor noise only.
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -50
+      noise_std: 1.0
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people: []
+
+  one_person_walking:
+    description: >-
+      One person walking through the room at a steady gait, producing a
+      periodic disturbance centered on the middle subcarriers.
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -52
+      noise_std: 1.5
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.8
+        amplitude_disturbance: 4.0
+        subcarrier_center: 32
+        subcarrier_spread: 18
+        phase_offset_rad: 0.0
+
+  two_people:
+    description: >-
+      Two people moving independently at different gait frequencies, each
+      localized around a different subcarrier range.
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -55
+      noise_std: 2.0
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.8
+        amplitude_disturbance: 3.5
+        subcarrier_center: 18
+        subcarrier_spread: 14
+        phase_offset_rad: 0.0
+      - walk_frequency_hz: 1.3
+        amplitude_disturbance: 3.0
+        subcarrier_center: 46
+        subcarrier_spread: 14
+        phase_offset_rad: 1.2
+
+  three_people:
+    description: >-
+      Three people moving independently at different gait frequencies,
+      each localized around a different subcarrier range. Used as the
+      "3+" class when training services/pipeline's people counter.
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -58
+      noise_std: 2.5
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.8
+        amplitude_disturbance: 3.0
+        subcarrier_center: 12
+        subcarrier_spread: 10
+        phase_offset_rad: 0.0
+      - walk_frequency_hz: 1.05
+        amplitude_disturbance: 2.8
+        subcarrier_center: 32
+        subcarrier_spread: 10
+        phase_offset_rad: 2.0
+      - walk_frequency_hz: 1.3
+        amplitude_disturbance: 2.6
+        subcarrier_center: 52
+        subcarrier_spread: 10
+        phase_offset_rad: 1.2
+
+  # --- Zone scenarios (../../../room.yaml's default 2x3 grid) ---------------
+  #
+  # One person in a fixed zone, used for zone-level localization
+  # calibration/testing (see ../../pipeline/calibrate.py). Zone names match
+  # ../../../room.yaml's zone_ids exactly (row letter A=near, B=far; column
+  # 1=left, 2=center, 3=right) — kept in sync by convention, not by reading
+  # room.yaml (see this file's header comment).
+  #
+  # Column position sets subcarrier_center (a person's left/right position
+  # perturbs different subcarriers via multipath geometry), and row
+  # position sets rssi.base and amplitude_disturbance (near vs. far from
+  # the WiFi source changes both signal strength and how strongly movement
+  # perturbs it) — a two-axis fingerprint a classifier can learn to invert.
+  # subcarrier_spread is tighter than the other scenarios (10 vs. 14-18) so
+  # each column's influence stays more spatially separated.
+
+  A1:
+    description: "Zone A1 (near, left) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -45
+      noise_std: 1.0
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 4.5
+        subcarrier_center: 10
+        subcarrier_spread: 10
+        phase_offset_rad: 0.0
+
+  A2:
+    description: "Zone A2 (near, center) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -45
+      noise_std: 1.0
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 4.5
+        subcarrier_center: 32
+        subcarrier_spread: 10
+        phase_offset_rad: 0.6
+
+  A3:
+    description: "Zone A3 (near, right) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -45
+      noise_std: 1.0
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 4.5
+        subcarrier_center: 54
+        subcarrier_spread: 10
+        phase_offset_rad: 1.2
+
+  B1:
+    description: "Zone B1 (far, left) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -60
+      noise_std: 1.5
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 2.5
+        subcarrier_center: 10
+        subcarrier_spread: 10
+        phase_offset_rad: 1.8
+
+  B2:
+    description: "Zone B2 (far, center) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -60
+      noise_std: 1.5
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 2.5
+        subcarrier_center: 32
+        subcarrier_spread: 10
+        phase_offset_rad: 2.4
+
+  B3:
+    description: "Zone B3 (far, right) — for zone-level localization calibration/testing."
+    subcarrier_count: 64
+    channel: 6
+    source_mac: "24:6F:28:AB:CD:EF"
+    rssi:
+      base: -60
+      noise_std: 1.5
+    amplitude:
+      baseline: 20.0
+      noise_std: 0.3
+    phase:
+      noise_std: 0.05
+    people:
+      - walk_frequency_hz: 0.9
+        amplitude_disturbance: 2.5
+        subcarrier_center: 54
+        subcarrier_spread: 10
+        phase_offset_rad: 3.0

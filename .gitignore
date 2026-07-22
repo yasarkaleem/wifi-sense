@@ -1,0 +1,49 @@
+# datasets (converted locally with datasets/download.py — see datasets/README.md)
+/datasets/*
+!/datasets/README.md
+!/datasets/download.py
+!/datasets/pyproject.toml
+!/datasets/tests/
+
+# trained model checkpoints (large binary artifacts, regenerate with
+# services/pipeline/scripts/train_counter.py or python -m pipeline.calibrate)
+services/pipeline/checkpoints/
+
+# on-site zone calibration recordings (regenerate with python -m pipeline.calibrate)
+services/pipeline/calibration_data/
+
+# api's local SQLite history (standalone dev only — docker compose uses a
+# named volume instead, see docker-compose.yml)
+services/api/data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# ESP-IDF
+firmware/esp32-csi/build/
+firmware/esp32-csi/sdkconfig
+firmware/esp32-csi/sdkconfig.old
+firmware/esp32-csi/managed_components/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,32 @@
+# room.yaml — physical room layout for zone-level localization.
+#
+# Defines a grid of zones (rows x columns), used by:
+#   - services/pipeline's localizer (pipeline/models/localizer.py) and
+#     calibration CLI (python -m pipeline.calibrate) — one class per zone
+#   - services/replay's per-zone synthetic scenarios (see
+#     services/replay/src/replay/scenarios.yaml's A1/A2/A3/B1/B2/B3
+#     scenarios), kept in sync with this grid by convention, not by
+#     reading this file — services communicate over the network only,
+#     never via shared config imports (see ../CLAUDE.md's
+#     service-isolation rule)
+#
+# Zone IDs are "<row_letter><column_number>", row-major, 1-indexed
+# columns: a 2x3 grid (2 rows, 3 columns) is A1 A2 A3 / B1 B2 B3.
+#
+# Changing rows/columns here does NOT automatically add matching replay
+# scenarios or retrain anything — see CLAUDE.md's "Zone-level
+# localization" section before changing the grid shape.
+
+grid:
+  rows: 2
+  columns: 3
+
+# Optional, purely descriptive per-zone metadata (not used by the
+# localizer's math) — handy for a calibration operator or a dashboard.
+zones:
+  A1: {label: "Near, left"}
+  A2: {label: "Near, center"}
+  A3: {label: "Near, right"}
+  B1: {label: "Far, left"}
+  B2: {label: "Far, center"}
+  B3: {label: "Far, right"}

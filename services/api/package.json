@@ -1,0 +1,21 @@
+{
+  "name": "@wifi-sense/api",
+  "version": "0.1.0",
+  "description": "REST + WebSocket API that publishes occupancy data.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "zeromq": "^6.1.0"
+  }
+}

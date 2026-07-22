@@ -1,0 +1,235 @@
+/* Dark, minimal theme — palette from the dataviz skill's dark-surface
+   reference (references/palette.md): #0d0d0d page plane, #1a1a19 card
+   surface, white primary ink, muted grays for secondary text/gridlines. */
+
+:root {
+  color-scheme: dark;
+  --page-plane: #0d0d0d;
+  --surface: #1a1a19;
+  --ink-primary: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+  --border: rgba(255, 255, 255, 0.1);
+  --status-good: #0ca30c;
+  --status-critical: #e66767;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page-plane);
+  color: var(--ink-primary);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.app__title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* 2x2: count + gauge on row 1, heatmap + history on row 2 (source order) */
+.app__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .app__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Card shell -------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+  margin: 0 0 12px;
+}
+
+.card__caption {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+.card__caption--muted {
+  color: var(--ink-muted);
+}
+
+.card__caption code {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+
+/* --- Connection badge ---------------------------------------------------- */
+
+.connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.connection-badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+}
+
+.connection-badge--open .connection-badge__dot {
+  background: var(--status-good);
+  box-shadow: 0 0 0 3px rgba(12, 163, 12, 0.2);
+}
+
+.connection-badge--closed .connection-badge__dot {
+  background: var(--status-critical);
+}
+
+.connection-badge--connecting .connection-badge__dot {
+  background: var(--ink-muted);
+}
+
+/* --- Count card ---------------------------------------------------------- */
+
+.count-card__value {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* --- Motion gauge ---------------------------------------------------------- */
+
+.motion-gauge {
+  align-items: center;
+  text-align: center;
+}
+
+.motion-gauge__svg {
+  width: 100%;
+  max-width: 220px;
+}
+
+.motion-gauge__fill {
+  transition: stroke-dashoffset 300ms ease-out;
+}
+
+.motion-gauge__value {
+  font-size: 40px;
+  font-weight: 700;
+  margin-top: -8px;
+  letter-spacing: -0.02em;
+}
+
+/* --- Zone heatmap ---------------------------------------------------------- */
+
+.zone-heatmap__grid {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-height: 160px;
+}
+
+.zone-heatmap__cell {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 60px;
+  transition: background 300ms ease-out;
+}
+
+.zone-heatmap__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.zone-heatmap__pct {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* --- History chart ---------------------------------------------------------- */
+
+.history-chart__svg {
+  width: 100%;
+  height: auto;
+}
+
+.history-chart__axis-label {
+  font-size: 10px;
+  fill: var(--ink-muted);
+}
+
+.history-chart__tooltip {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.history-chart__tooltip strong {
+  font-size: 15px;
+}
+
+.history-chart__tooltip span {
+  color: var(--ink-muted);
+}

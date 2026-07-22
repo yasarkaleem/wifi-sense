@@ -1,0 +1,76 @@
+services:
+  ingest:
+    build:
+      context: ./services/ingest
+    ports:
+      - "5566:5566/udp"
+      - "5567:5567"
+      - "8090:8090"
+    environment:
+      - INGEST_UDP_HOST=0.0.0.0
+      - INGEST_UDP_PORT=5566
+      - INGEST_PUB_HOST=0.0.0.0
+      - INGEST_PUB_PORT=5567
+      - INGEST_PLOT=web
+      - INGEST_PLOT_HOST=0.0.0.0
+      - INGEST_PLOT_PORT=8090
+
+  pipeline:
+    build:
+      context: ./services/pipeline
+    ports:
+      - "5568:5568"
+    environment:
+      - PIPELINE_SUB_HOST=ingest
+      - PIPELINE_SUB_PORT=5567
+      - PIPELINE_PUB_HOST=0.0.0.0
+      - PIPELINE_PUB_PORT=5568
+    depends_on:
+      - ingest
+
+  # Emulates a live ESP32 (no hardware needed) so `docker compose up` shows
+  # real changing data out of the box — see ../CLAUDE.md's "Standalone +
+  # docker compose rule". Override REPLAY_SCENARIO to try others (see
+  # services/replay/src/replay/scenarios.yaml).
+  replay:
+    build:
+      context: ./services/replay
+    depends_on:
+      - ingest
+    environment:
+      - REPLAY_SCENARIO=one_person_walking
+      - REPLAY_RATE=100
+      - REPLAY_TARGET=ingest:5566
+    volumes:
+      - ./datasets:/datasets:ro
+
+  api:
+    build:
+      context: ./services/api
+    ports:
+      - "3001:3001"
+    environment:
+      - API_HTTP_PORT=3001
+      - API_SUB_HOST=pipeline
+      - API_SUB_PORT=5568
+      - API_DB_PATH=/data/wifi-sense.db
+      - API_CORS_ORIGIN=*
+    volumes:
+      - api-data:/data
+    depends_on:
+      - pipeline
+
+  # Static dashboard served to the browser on the host — it talks to `api`
+  # via the host port mapping above (http://localhost:3001), not the
+  # Docker-internal service name, since it runs in the user's browser, not
+  # in a container. See dashboard/src/api.js.
+  dashboard:
+    build:
+      context: ./dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  api-data:

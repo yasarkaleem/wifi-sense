@@ -1,0 +1,93 @@
+menu "wifi-sense CSI firmware"
+
+    choice CSI_DEVICE_ROLE
+        prompt "Device role"
+        default CSI_ROLE_RECEIVER
+        help
+            One firmware image, two roles — flash the *same* project onto
+            two boards with a different role each. See README.md.
+
+        config CSI_ROLE_RECEIVER
+            bool "Receiver (captures CSI, sends JSON frames over UDP)"
+        config CSI_ROLE_SENDER
+            bool "Sender (broadcasts small UDP packets at a fixed rate)"
+    endchoice
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+            Fallback used if NVS has no "ssid" key under the "csi_cfg"
+            namespace — see main/nvs_config.h. Both roles must join the
+            *same* network/channel for CSI capture to see the sender's
+            traffic.
+
+    config WIFI_PASSWORD
+        string "WiFi password"
+        default "mypassword"
+        help
+            Fallback used if NVS has no "password" key. Leave blank for an
+            open network.
+
+    config WIFI_MAX_RECONNECT_DELAY_MS
+        int "Max reconnect backoff (ms)"
+        default 30000
+        help
+            wifi_conn.c retries with exponential backoff starting at 1s,
+            capped here, and resets to 1s after a successful connection —
+            see the "Handling reconnects" section in README.md.
+
+    if CSI_ROLE_RECEIVER
+
+        config CSI_TARGET_HOST
+            string "UDP target host (services/ingest)"
+            default "192.168.1.100"
+            help
+                Fallback used if NVS has no "host" key. IPv4 address of the
+                machine running services/ingest.
+
+        config CSI_TARGET_PORT
+            int "UDP target port"
+            default 5566
+            help
+                Matches services/ingest's default --udp-port; see
+                docs/csi-frame-schema.md for the JSON frame this firmware
+                sends.
+
+        config CSI_SENDER_MAC
+            string "Expected sender MAC address (xx:xx:xx:xx:xx:xx)"
+            default ""
+            help
+                Only decode/forward CSI extracted from packets whose
+                source MAC matches this (read it from the sender's boot
+                log). Leave blank to accept CSI from ANY WiFi traffic on
+                the channel — fine for a first test with a single sender,
+                noisy/ambiguous with more than one nearby device.
+
+    endif
+
+    if CSI_ROLE_SENDER
+
+        config PING_RATE_HZ
+            int "Ping send rate (Hz)"
+            default 100
+            range 1 1000
+            help
+                How often the sender broadcasts a small UDP packet. This
+                is the CSI sample rate the receiver will observe (assuming
+                it isn't dropping frames — see README.md's "rate limiting"
+                section). Matches services/replay's default --rate.
+
+        config PING_BROADCAST_PORT
+            int "UDP broadcast port"
+            default 3333
+            help
+                Arbitrary — these packets exist only to produce
+                CSI-capturable WiFi traffic at a controlled rate, nothing
+                actually listens on this port. Deliberately different from
+                CSI_TARGET_PORT to avoid implying any relationship to
+                services/ingest.
+
+    endif
+
+endmenu
