@@ -17,12 +17,34 @@ Scenarios are defined in [`src/replay/scenarios.yaml`](src/replay/scenarios.yaml
   frequencies, each localized around a different subcarrier range.
 - `three_people` — three people, same idea, used as the "3+" class when
   training `services/pipeline`'s people counter.
+- `A1`..`B3` — one person standing in a single fixed room zone (see
+  [`../../room.yaml`](../../room.yaml)), used for zone-localization
+  calibration/testing and as the building blocks the two trajectory
+  scenarios below cross-fade between. Each zone has its own distinct
+  `walk_frequency_hz` in addition to its own `subcarrier_center`/`rssi` —
+  deliberately, so `services/pipeline`'s STFT-based zone localizer has a
+  frequency-domain signal to key off, not just a spatial one (same-row
+  zones that only differed by subcarrier position turned out to be far
+  less reliably distinguishable — see the zone scenarios' own comment in
+  `scenarios.yaml`).
+- `one_person_walking_path` / `two_people_walking_paths` — `type:
+  trajectory` scenarios: one or two people walking a *sequence* of zones
+  (`A1(5s) -> A2(4s) -> B2(6s) -> B3(5s)`, looping) instead of standing
+  still in one, cross-fading smoothly between each zone's disturbance
+  signature over `transition_s` seconds so the emitted CSI mimics
+  continuous walking rather than teleporting. See
+  `replay.scenarios.effective_scenario()`. These are what
+  `services/pipeline/scripts/generate_zone_dataset.py` uses to synthesize
+  the "walking person" demo's training data, and what
+  `docker-compose.yml`'s `replay` service streams by default.
 
 Each person's disturbance is a sinusoid (`walk_frequency_hz`) weighted by a
 Gaussian centered on `subcarrier_center` with width `subcarrier_spread`, so
 the effect is strongest near that subcarrier and fades with distance from
 it. Point `--scenarios-file` at your own YAML to define custom scenarios
-without touching code.
+without touching code — a `type: trajectory` scenario's `paths[].segments[].zone`
+values must reference `type: static` (or untyped) scenario names defined
+in the *same* file.
 
 ## Dataset mode (real data)
 

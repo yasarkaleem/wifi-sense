@@ -10,7 +10,7 @@ import time
 
 from replay.dataset import DatasetRecording
 from replay.generator import SCHEMA_VERSION, SEQUENCE_NUMBER_WRAP, CSIFrame, generate_frame
-from replay.scenarios import ScenarioConfig
+from replay.scenarios import ScenarioLike, effective_scenario
 
 
 class UDPFrameSender:
@@ -29,7 +29,7 @@ class UDPFrameSender:
 
 def stream_scenario(
     *,
-    scenario: ScenarioConfig,
+    scenario: ScenarioLike,
     rate_hz: float,
     host: str,
     port: int,
@@ -37,6 +37,12 @@ def stream_scenario(
     duration_s: float | None = None,
 ) -> None:
     """Stream synthetic CSI frames for `scenario` over UDP to (host, port).
+
+    `scenario` may be a static `ScenarioConfig` (unchanged behavior) or a
+    `TrajectoryScenarioConfig` — resolved to a plain scenario snapshot each
+    tick via `effective_scenario()`, so a walking person's cross-fade
+    between zones is recomputed every frame from the real wall-clock
+    elapsed time.
 
     Runs until interrupted (Ctrl+C) unless `duration_s` is given, in which
     case it stops after roughly that many seconds — used by tests.
@@ -53,7 +59,7 @@ def stream_scenario(
         while duration_s is None or (time.monotonic() - start) < duration_s:
             elapsed_s = time.monotonic() - start
             frame = generate_frame(
-                scenario,
+                effective_scenario(scenario, elapsed_s),
                 elapsed_s=elapsed_s,
                 sequence_number=sequence_number,
                 timestamp_us=time.time_ns() // 1_000,

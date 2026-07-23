@@ -147,6 +147,68 @@ calibrates two zones from live replay subprocesses, then runs the actual
 `pipeline` service against a *fresh* recording of each zone and checks its
 predictions converge on the right one.
 
+Published zone probabilities are smoothed with a 3-window exponential
+moving average (`pipeline/smoothing.py`'s `ZoneEMASmoother`, applied in
+`pipeline/service.py` right after the raw prediction, before publishing)
+so the estimate doesn't visibly flicker between adjacent zones window to
+window — see `tests/test_smoothing.py` for the exact math.
+
+## The "walking person" demo (`scripts/generate_zone_dataset.py`, `scripts/train_demo_models.py`, `models/`)
+
+`services/replay`'s `one_person_walking_path` / `two_people_walking_paths`
+scenarios (see `../replay/README.md`) walk one or two people through a
+*sequence* of zones instead of standing still in one. This is what
+`docker-compose.yml`'s `replay` service streams by default, so the
+dashboard's zone heatmap shows a person actually walking the room —
+without that, `count`/`zones` would sit in their "not loaded" states until
+someone manually trains/calibrates something.
+
+Two scripts turn that into the checkpoints `docker compose up` actually
+serves:
+
+```bash
+pip install -e ".[dev,ml,localize]"
+
+python scripts/generate_zone_dataset.py    # offline (no subprocess/network), ~10s
+python scripts/train_demo_models.py        # trains both models, ~1-2 min
+```
+
+`generate_zone_dataset.py` imports `services/replay`'s generator directly
+in-process (not a subprocess, unlike `train_counter.py` — see its own
+docstring for why: offline synthesis is what makes generating enough data
+fast) and produces one `.npz` (`datasets/zone_demo.npz`, gitignored —
+regenerate, don't commit) with windows for every zone (`A1`..`B3`, for the
+localizer) plus `empty_room`/the two trajectory scenarios (for the
+counter, relabeled 0/1/2 — a separate 3-class model from
+`train_counter.py`'s 4-class 0/1/2/3+, since this demo never shows 3+
+people). `train_demo_models.py` loads that dataset and fits both models,
+saving `models/counter_demo.pt`, `models/localizer_demo.joblib`, and
+`models/demo_metrics.json`.
+
+**Unlike `checkpoints/` (gitignored), `models/` IS committed** — see the
+directory's presence in the repo and the root `.gitignore`. This is the
+one deliberate exception to the project's usual "regenerate locally, don't
+commit checkpoints" convention: `docker compose up` showing a working
+demo with zero manual training steps is only possible if a checkpoint
+ships in the repo. `docker-compose.yml`'s `pipeline` service explicitly
+sets `PIPELINE_COUNTER_CHECKPOINT`/`PIPELINE_LOCALIZER_CHECKPOINT` to
+`/app/models/{counter,localizer}_demo.{pt,joblib}` (baked into the image
+by the Dockerfile's `COPY models ./models`) — deliberately *only* there,
+not as a `pipeline/cli.py` default, so a bare `python -m pipeline` with no
+flags/env vars anywhere else (standalone dev, other tests) keeps behaving
+exactly as documented above: presence-only until you point it at a
+checkpoint yourself.
+
+**A known characteristic, not a bug:** zone/count predictions are most
+confident mid-dwell and noisiest for the ~1-2 windows spanning each zone
+transition (a 2s analysis window straddling a `transition_s`-long
+cross-fade genuinely contains a blend of two zones' signal) — the EMA
+smoother damps this but doesn't eliminate it. This is realistic: a person
+physically mid-stride between two zones *is* genuinely ambiguous to
+localize. Regenerating with more `--recordings-per-class`/longer
+`--seconds-per-recording` improves generalization further if you want to
+tune it.
+
 ## Running the service
 
 ```bash
@@ -213,10 +275,13 @@ docker compose up --build ingest pipeline
 ```
 
 The image bakes in the `ml` and `localize` extras so ML counting and zone
-localization are always available; each stays inactive unless you mount a
-checkpoint and set `PIPELINE_COUNTER_CHECKPOINT` / `PIPELINE_LOCALIZER_CHECKPOINT`
-(or pass `--counter-checkpoint` / `--localizer-checkpoint`) in
-`docker-compose.yml`.
+localization work without any extra install step, and `docker-compose.yml`
+points `PIPELINE_COUNTER_CHECKPOINT`/`PIPELINE_LOCALIZER_CHECKPOINT` at the
+committed "walking person" demo checkpoints baked into the image at
+`/app/models/` (see "The walking person demo" above) — so `docker compose
+up` shows working `count`/`zones` data immediately, no manual
+training/calibration step. Point those env vars at your own
+checkpoint/calibration instead to override.
 
 ## Tests
 

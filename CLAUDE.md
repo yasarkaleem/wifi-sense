@@ -49,7 +49,11 @@ disturbances without waiting on the rest of the pipeline.
 the same wire format as the ESP32, so the rest of the pipeline can be
 developed and tested without physical hardware — either synthetic
 scenarios (`--scenario`) or a real, converted dataset recording
-(`--dataset`/`--file`; see "Real datasets" below).
+(`--dataset`/`--file`; see "Real datasets" below). Some synthetic
+scenarios are `type: trajectory`: one or more people walking a *sequence*
+of the room's zones (cross-fading smoothly between each zone's
+disturbance signature) rather than standing still in one — see "The
+walking-person demo" below.
 
 `firmware/esp32-csi` is the ESP-IDF project that runs on the ESP32. One
 firmware image, two roles chosen via `idf.py menuconfig` (or NVS at
@@ -257,6 +261,79 @@ proves the full loop end to end: calibrate two zones from real replay
 subprocesses, run the live `pipeline` service against a *fresh* recording
 of each zone, and confirm its predictions converge on the right one.
 
+Published zone probabilities are smoothed with a 3-window exponential
+moving average (`pipeline/smoothing.py`'s `ZoneEMASmoother`, `alpha =
+2/(span+1) = 0.5`, applied in `pipeline/service.py` right before
+publishing) so the estimate doesn't visibly flicker between adjacent
+zones window to window.
+
+## The walking-person demo
+
+The zone scenarios above (`A1`..`B3`) each put one person standing still
+in a single zone — good for calibration, but `services/replay` also has
+`type: trajectory` scenarios that walk one or two people through a
+*sequence* of zones: `one_person_walking_path` (`A1(5s) -> A2(4s) ->
+B2(6s) -> B3(5s)`, looping) and `two_people_walking_paths` (two
+independent, time-offset loops). `replay.scenarios.effective_scenario()`
+resolves the current cross-faded position each frame — interpolating both
+the person's `walk_frequency_hz`/`subcarrier_center` and the zone's
+baseline rssi/amplitude/noise between the previous and current zone over
+`transition_s` seconds — so the emitted CSI mimics continuous walking
+rather than teleporting between two fixed disturbance profiles. Every
+zone (`A1`..`B3`) also has its own distinct `walk_frequency_hz`, not just
+its own `subcarrier_center`: since the zone localizer classifies STFT
+(time-frequency) features, two zones that only differed by subcarrier
+position turned out to be far less reliably distinguishable than two that
+also differ in frequency — verified empirically during development.
+
+This is what makes `docker compose up` show a *working* demo — a person
+visibly walking the room on the dashboard's heatmap, with `count` and
+`zones` populated — with no manual training or calibration step:
+
+- `services/pipeline/scripts/generate_zone_dataset.py` synthesizes
+  labeled training windows entirely offline (direct in-process import of
+  `services/replay`'s generator, not a subprocess — see its own docstring
+  for why this narrow exception to the network-only service-isolation
+  rule exists: real-time subprocess capture would take far too long for
+  the data volume this needs). Produces zone-labeled windows (`A1`..`B3`,
+  for the localizer) and count-labeled windows (`empty_room`→0, the two
+  trajectory scenarios→1/2, for the counter — a separate 3-class model
+  from the general people-counter's 0/1/2/3+, since this demo never shows
+  3+ people) in one `.npz`.
+- `services/pipeline/scripts/train_demo_models.py` trains both models
+  from that dataset and saves them to `services/pipeline/models/`.
+
+```bash
+cd services/pipeline
+pip install -e ".[dev,ml,localize]"
+python scripts/generate_zone_dataset.py
+python scripts/train_demo_models.py
+```
+
+**Unlike every other checkpoint directory in this repo,
+`services/pipeline/models/` is committed, not gitignored** — the one
+deliberate exception to "regenerate locally, don't commit checkpoints",
+because there's no other way for `docker compose up` alone to show a
+working demo. `docker-compose.yml`'s `pipeline` service explicitly points
+`PIPELINE_COUNTER_CHECKPOINT`/`PIPELINE_LOCALIZER_CHECKPOINT` at
+`/app/models/{counter,localizer}_demo.{pt,joblib}` (baked into the image
+by the Dockerfile) — deliberately *only* in `docker-compose.yml`, not as
+a `pipeline/cli.py` default, so a bare `python -m pipeline` anywhere else
+(standalone dev, other tests) keeps behaving exactly as documented in the
+two sections above: presence-only until you point it at a checkpoint
+yourself.
+
+Zone/count predictions are most confident mid-dwell and noisiest for the
+1-2 windows spanning each zone transition — a `window_s=2.0` analysis
+window straddling a `transition_s`-long cross-fade genuinely contains a
+blend of two zones' signal, and the EMA smoother damps but doesn't
+eliminate that. This is realistic rather than a bug: a person physically
+mid-stride between two zones *is* genuinely ambiguous to localize.
+`services/pipeline/tests/test_integration_trajectory_demo.py` proves the
+end-to-end loop (trains tiny checkpoints, streams the trajectory scenario
+through a real `pipeline` subprocess, and checks it visits multiple zones
+with a dominant count).
+
 ## API and dashboard
 
 `services/api` subscribes to all three of `services/pipeline`'s ZeroMQ
@@ -274,22 +351,29 @@ checkpoints are configured (see the two sections above);
 
 `dashboard` (React) renders that state: a people-count card, a
 motion-intensity gauge, a room heatmap colored by per-zone occupancy
-probability, and a 10-minute history chart — all fed by `services/api`'s
-REST (initial values) and WebSocket (live updates), with automatic
-reconnection if the socket drops. It's a **browser** app, so it reaches
-`services/api` via the api container's *host* port mapping
-(`http://localhost:3001`), never the Docker-internal service name — see
-`dashboard/src/api.js`. Cards for fields that aren't populated yet (count,
-zones) show an explicit "not loaded" state with the exact command to
-enable them, rather than blank or fabricated data.
+probability (with an animated dot at the probability-weighted centroid of
+`zones`, CSS-tweened between updates and trailed by its last ~10
+positions — see `dashboard/src/components/ZoneHeatmap.jsx`), and a
+10-minute history chart — all fed by `services/api`'s REST (initial
+values) and WebSocket (live updates), with automatic reconnection if the
+socket drops. It's a **browser** app, so it reaches `services/api` via
+the api container's *host* port mapping (`http://localhost:3001`), never
+the Docker-internal service name — see `dashboard/src/api.js`. Cards for
+fields that aren't populated yet (count, zones) show an explicit "not
+loaded" state with the exact command to enable them, rather than blank or
+fabricated data.
 
 `docker compose up` (no profile flags, no manual steps) starts every
-service, including `replay` streaming a synthetic scenario — so the
-dashboard at **http://localhost:3000** shows real, live-changing presence/
-motion-intensity data immediately. Count and zone data need a trained
-counter checkpoint / calibrated localizer first (see the two sections
-above) — checkpoints are gitignored (regenerate, don't commit), so a
-fresh clone won't have them until you train/calibrate.
+service, including `replay` streaming the `one_person_walking_path`
+trajectory scenario by default and `pipeline` loading the committed
+"walking person" demo checkpoints (see "The walking-person demo" above)
+— so the dashboard at **http://localhost:3000** shows a person visibly
+walking the room, with live count/zones/presence/motion-intensity data,
+immediately with no manual steps. `REPLAY_SCENARIO=two_people_walking_paths`
+switches the count to 2. Point `services/pipeline` at your own trained
+counter checkpoint / calibrated localizer (see the two sections above —
+regular checkpoints stay gitignored, regenerate rather than commit) to
+use real captured data instead of the synthetic demo.
 
 ## Coding conventions
 

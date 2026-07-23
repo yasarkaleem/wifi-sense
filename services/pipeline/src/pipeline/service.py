@@ -16,6 +16,7 @@ import zmq
 from pipeline.detectors.presence import PresenceDetector
 from pipeline.preprocess import hampel_filter, savitzky_golay_smooth
 from pipeline.publisher import ZMQEventPublisher
+from pipeline.smoothing import ZoneEMASmoother
 from pipeline.windowing import RollingWindower
 
 logger = logging.getLogger("pipeline.service")
@@ -98,13 +99,29 @@ def run_service(args: argparse.Namespace) -> None:
         logger.info(
             "publishing count events on tcp://%s:%s (topic=count)", args.pub_host, args.pub_port
         )
+    else:
+        logger.info(
+            "people counter: not loaded (set --counter-checkpoint / PIPELINE_COUNTER_CHECKPOINT to enable)"
+        )
 
     localizer = None
+    zone_smoother = None
     if args.localizer_checkpoint:
         localizer = _load_localizer(args)
+        zone_smoother = ZoneEMASmoother(span=3)
         logger.info(
             "publishing zone events on tcp://%s:%s (topic=zones)", args.pub_host, args.pub_port
         )
+    else:
+        logger.info(
+            "zone localizer: not loaded (set --localizer-checkpoint / PIPELINE_LOCALIZER_CHECKPOINT to enable)"
+        )
+
+    logger.info(
+        "startup summary: presence=always-on counter=%s localizer=%s",
+        f"loaded ({args.counter_checkpoint})" if counter else "not loaded",
+        f"loaded ({args.localizer_checkpoint}, zones={localizer.zone_ids})" if localizer else "not loaded",
+    )
 
     last_presence: bool | None = None
     last_count: int | None = None
@@ -162,6 +179,7 @@ def run_service(args: argparse.Namespace) -> None:
                     nperseg=args.localizer_nperseg,
                     noverlap=args.localizer_noverlap,
                 )
+                zone_event = zone_smoother.update(zone_event)
                 publisher.publish(zone_event.to_dict(), topic=ZONES_TOPIC)
                 best = zone_event.best_zone
                 if best.zone_id != last_zone:

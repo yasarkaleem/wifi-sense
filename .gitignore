@@ -9,6 +9,12 @@
 # services/pipeline/scripts/train_counter.py or python -m pipeline.calibrate)
 services/pipeline/checkpoints/
 
+# offline-generated training data for the walking-person demo (regenerate
+# with services/pipeline/scripts/generate_zone_dataset.py — takes seconds,
+# not worth committing). NOT services/pipeline/models/ — those ARE
+# committed; see that directory's own note and CLAUDE.md.
+services/pipeline/datasets/
+
 # on-site zone calibration recordings (regenerate with python -m pipeline.calibrate)
 services/pipeline/calibration_data/
 

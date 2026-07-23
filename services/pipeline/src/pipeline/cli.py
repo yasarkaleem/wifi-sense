@@ -18,21 +18,27 @@ this service.
 ML-based people counting (publishing {timestamp, count, confidence} on the
 `count` topic) is off by default and only activates when
 --counter-checkpoint / PIPELINE_COUNTER_CHECKPOINT points at a checkpoint
-produced by scripts/train_counter.py — see ../../../CLAUDE.md. It requires
-the "ml" extra (`pip install -e ".[ml]"`); presence detection alone does
-not need PyTorch.
+produced by scripts/train_counter.py (or scripts/train_demo_models.py,
+which produces services/pipeline/models/counter_demo.pt — the "walking
+person" demo checkpoint docker-compose.yml points PIPELINE_COUNTER_CHECKPOINT
+at) — see ../../../CLAUDE.md. It requires the "ml" extra
+(`pip install -e ".[ml]"`); presence detection alone does not need PyTorch.
 
 Zone-level localization (publishing {timestamp, zones: [{zone_id,
 occupancy_probability}, ...]} on the `zones` topic) is similarly off by
 default, activating with --localizer-checkpoint / PIPELINE_LOCALIZER_CHECKPOINT
-pointing at a checkpoint produced by `python -m pipeline.calibrate` — see
-../../../CLAUDE.md's "Zone-level localization" section. It requires the
-"localize" extra (`pip install -e ".[localize]"`). Its
+pointing at a checkpoint produced by `python -m pipeline.calibrate` (or
+scripts/train_demo_models.py's services/pipeline/models/localizer_demo.joblib)
+— see ../../../CLAUDE.md's "Zone-level localization" section. It requires
+the "localize" extra (`pip install -e ".[localize]"`). Its
 --localizer-n-components/--localizer-nperseg/--localizer-noverlap MUST
 match what the checkpoint was calibrated with exactly (unlike the
 counter's CNN, the localizer's gradient-boosted classifier isn't
 spatial-size-agnostic) — --window-s/--stride-s are shared with presence
-detection and the counter, so those must match too.
+detection and the counter, so those must match too. Published zone
+probabilities are additionally smoothed with a 3-window exponential
+moving average (pipeline/smoothing.py) so the estimate doesn't flicker
+between adjacent zones window to window.
 """
 
 from __future__ import annotations
@@ -54,6 +60,15 @@ DEFAULT_HAMPEL_WINDOW = int(os.environ.get("PIPELINE_HAMPEL_WINDOW", "7"))
 DEFAULT_HAMPEL_SIGMAS = float(os.environ.get("PIPELINE_HAMPEL_SIGMAS", "3.0"))
 DEFAULT_SAVGOL_WINDOW = int(os.environ.get("PIPELINE_SAVGOL_WINDOW", "11"))
 DEFAULT_SAVGOL_POLYORDER = int(os.environ.get("PIPELINE_SAVGOL_POLYORDER", "3"))
+
+# No filesystem auto-detection here on purpose — a plain `python -m pipeline`
+# with no flags/env vars must always behave identically (presence-only, fast
+# startup) whether or not services/pipeline/models/ happens to exist, so
+# nothing about ML counting/localization silently activates itself for
+# unrelated invocations (docker-compose.yml is where the "walking person"
+# demo checkpoints actually get wired in, explicitly, via
+# PIPELINE_COUNTER_CHECKPOINT/PIPELINE_LOCALIZER_CHECKPOINT — see
+# ../../../docker-compose.yml and scripts/train_demo_models.py).
 DEFAULT_COUNTER_CHECKPOINT = os.environ.get("PIPELINE_COUNTER_CHECKPOINT") or None
 DEFAULT_COUNTER_N_COMPONENTS = int(os.environ.get("PIPELINE_COUNTER_N_COMPONENTS", "5"))
 DEFAULT_COUNTER_NPERSEG = int(os.environ.get("PIPELINE_COUNTER_NPERSEG", "32"))

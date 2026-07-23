@@ -4,13 +4,19 @@ WORKDIR /app
 
 COPY pyproject.toml ./
 COPY src ./src
+# The committed "walking person" demo checkpoints (see ../../models/,
+# scripts/generate_zone_dataset.py, scripts/train_demo_models.py) —
+# cli.py auto-loads these from /app/models/ if PIPELINE_COUNTER_CHECKPOINT/
+# PIPELINE_LOCALIZER_CHECKPOINT aren't set, so `docker compose up` shows a
+# working count/zone-heatmap with no manual training step.
+COPY models ./models
 
 # The "ml" (PyTorch) and "localize" (scikit-learn) extras are baked in so
-# ML people counting and zone localization are available out of the box;
-# each stays inactive unless PIPELINE_COUNTER_CHECKPOINT /
-# PIPELINE_LOCALIZER_CHECKPOINT (or --counter-checkpoint /
-# --localizer-checkpoint) points at a checkpoint — see cli.py and
-# ../../../CLAUDE.md's "ML-based people counting" / "Zone-level
+# ML people counting and zone localization work out of the box — cli.py
+# auto-loads the demo checkpoints copied above unless
+# PIPELINE_COUNTER_CHECKPOINT/PIPELINE_LOCALIZER_CHECKPOINT (or
+# --counter-checkpoint/--localizer-checkpoint) points somewhere else — see
+# cli.py and ../../../CLAUDE.md's "ML-based people counting" / "Zone-level
 # localization" sections.
 #
 # Install the CPU-only torch build explicitly first: this container never
@@ -31,9 +37,13 @@ ENV PIPELINE_SUB_HOST=ingest \
     PIPELINE_WINDOW_S=2.0 \
     PIPELINE_STRIDE_S=0.5 \
     PIPELINE_CALIBRATION_S=5.0 \
-    PIPELINE_N_SIGMAS=6.0 \
-    PIPELINE_COUNTER_CHECKPOINT= \
-    PIPELINE_LOCALIZER_CHECKPOINT=
+    PIPELINE_N_SIGMAS=6.0
+
+# PIPELINE_COUNTER_CHECKPOINT / PIPELINE_LOCALIZER_CHECKPOINT are
+# deliberately left unset here — cli.py auto-detects the demo checkpoints
+# copied above at /app/models/ when neither is set. Set either explicitly
+# (in docker-compose.yml or `docker run -e ...`) to point at your own
+# checkpoint instead.
 
 EXPOSE 5568
 

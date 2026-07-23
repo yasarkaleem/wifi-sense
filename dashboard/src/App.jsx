@@ -18,7 +18,7 @@ export default function App() {
       <main className="app__grid">
         <CountCard count={current.count} confidence={current.confidence} presence={current.presence} />
         <MotionGauge value={current.motion_intensity} presence={current.presence} />
-        <ZoneHeatmap zones={current.zones} />
+        <ZoneHeatmap zones={current.zones} timestamp={current.timestamp} />
         <HistoryChart history={history} />
       </main>
     </div>

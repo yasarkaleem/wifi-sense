@@ -13,7 +13,9 @@ import math
 import random
 from dataclasses import dataclass
 
-from replay.scenarios import ScenarioConfig
+import numpy as np
+
+from replay.scenarios import ScenarioConfig, ScenarioLike, effective_scenario
 
 SCHEMA_VERSION = 1
 SEQUENCE_NUMBER_WRAP = 2**32
@@ -115,3 +117,38 @@ def generate_frame(
         phase=phase,
         sequence_number=sequence_number % SEQUENCE_NUMBER_WRAP,
     )
+
+
+def synthesize_recording(
+    scenario: ScenarioLike, *, rate_hz: float, duration_s: float, seed: int | None = None
+) -> np.ndarray:
+    """Offline synthesis of a full recording's amplitude matrix — no socket,
+    no real-time sleep, just `round(duration_s * rate_hz)` frames generated
+    back to back with `elapsed_s = i / rate_hz`.
+
+    Used by scripts/generate_zone_dataset.py (services/pipeline) to produce
+    training data far faster than real-time subprocess capture would allow
+    — a `TrajectoryScenarioConfig`'s cross-fades are resolved via
+    `effective_scenario()` exactly as `replay.stream.stream_scenario()`
+    resolves them per-tick when actually streaming live.
+
+    Returns shape (n_frames, scenario.subcarrier_count).
+    """
+    rng = random.Random(seed)
+    n_frames = max(1, round(duration_s * rate_hz))
+    base_timestamp_us = 0
+
+    rows: list[list[float]] = []
+    for i in range(n_frames):
+        elapsed_s = i / rate_hz
+        resolved = effective_scenario(scenario, elapsed_s)
+        frame = generate_frame(
+            resolved,
+            elapsed_s=elapsed_s,
+            sequence_number=i,
+            timestamp_us=base_timestamp_us + round(i * 1_000_000 / rate_hz),
+            rng=rng,
+        )
+        rows.append(frame.amplitude)
+
+    return np.array(rows, dtype=np.float64)

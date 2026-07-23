@@ -116,12 +116,22 @@ scenarios:
   # room.yaml (see this file's header comment).
   #
   # Column position sets subcarrier_center (a person's left/right position
-  # perturbs different subcarriers via multipath geometry), and row
-  # position sets rssi.base and amplitude_disturbance (near vs. far from
-  # the WiFi source changes both signal strength and how strongly movement
-  # perturbs it) — a two-axis fingerprint a classifier can learn to invert.
-  # subcarrier_spread is tighter than the other scenarios (10 vs. 14-18) so
-  # each column's influence stays more spatially separated.
+  # perturbs different subcarriers via multipath geometry), row position
+  # sets rssi.base and amplitude_disturbance (near vs. far from the WiFi
+  # source changes both signal strength and how strongly movement perturbs
+  # it), and EVERY zone additionally gets its own distinct walk_frequency_hz
+  # (0.6..1.6Hz in 0.2Hz steps) — a three-axis fingerprint. The frequency
+  # axis matters more than it might look: pipeline's zone localizer
+  # classifies STFT (time-frequency) spectrogram features, so two zones
+  # that only differ by subcarrier_center (e.g. same-row A1 vs A2) are
+  # separated mainly by a PCA-derived spatial signal that's easy for noise
+  # to swamp; giving them different walk frequencies too puts a second,
+  # much more robust distinguishing signal directly in the domain the
+  # classifier's features are built from — verified empirically to be the
+  # difference between near-100%-confident and near-random same-row zone
+  # classification on fresh (non-training-seed) recordings. subcarrier_spread
+  # is tighter than the other scenarios (10 vs. 14-18) so each column's
+  # influence stays more spatially separated too.
 
   A1:
     description: "Zone A1 (near, left) — for zone-level localization calibration/testing."
@@ -137,7 +147,7 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 0.6
         amplitude_disturbance: 4.5
         subcarrier_center: 10
         subcarrier_spread: 10
@@ -157,7 +167,7 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 0.8
         amplitude_disturbance: 4.5
         subcarrier_center: 32
         subcarrier_spread: 10
@@ -177,7 +187,7 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 1.0
         amplitude_disturbance: 4.5
         subcarrier_center: 54
         subcarrier_spread: 10
@@ -197,7 +207,7 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 1.2
         amplitude_disturbance: 2.5
         subcarrier_center: 10
         subcarrier_spread: 10
@@ -217,7 +227,7 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 1.4
         amplitude_disturbance: 2.5
         subcarrier_center: 32
         subcarrier_spread: 10
@@ -237,8 +247,71 @@ scenarios:
     phase:
       noise_std: 0.05
     people:
-      - walk_frequency_hz: 0.9
+      - walk_frequency_hz: 1.6
         amplitude_disturbance: 2.5
         subcarrier_center: 54
         subcarrier_spread: 10
         phase_offset_rad: 3.0
+
+  # --- Trajectory scenarios --------------------------------------------------
+  #
+  # `type: trajectory` scenarios walk one or more people through a sequence
+  # of the zones defined above, rather than standing still in one — each
+  # zone leg ("segment") is dwelt in for `dwell_s` seconds, cross-fading
+  # smoothly over `transition_s` seconds into the next zone's disturbance
+  # signature (interpolating both the person's walk_frequency/subcarrier
+  # position and the zone's baseline rssi/amplitude/noise) so the emitted
+  # CSI mimics continuous walking motion, not a teleport between two fixed
+  # disturbance profiles. See replay/scenarios.py's effective_scenario().
+  #
+  # transition_s is deliberately shorter than it might look (0.5s, not
+  # several seconds) — pipeline's zone localizer classifies a window_s=2.0
+  # STFT window, so any 2s window overlapping a transition gets a blend of
+  # two zones' frequency content baked into its features, and the shortest
+  # dwell_s below (A2, 4s) leaves very little of its dwell "settled" once
+  # you subtract a slow transition from both ends. A short transition
+  # maximizes settled (reliably-classifiable) time while still visibly
+  # cross-fading rather than teleporting — verified empirically.
+  #
+  # Used as the "1 person" / "2 people" stimuli for
+  # services/pipeline/scripts/generate_zone_dataset.py's synthetic training
+  # data, and as docker-compose.yml's default replay scenario so the
+  # dashboard shows a person visibly walking the room out of the box.
+
+  one_person_walking_path:
+    type: trajectory
+    description: >-
+      One person walking a loop through the room: A1(5s) -> A2(4s) ->
+      B2(6s) -> B3(5s), then repeating. The "1 person" stimulus for the
+      walking demo.
+    transition_s: 0.5
+    paths:
+      - loop: true
+        segments:
+          - {zone: A1, dwell_s: 5}
+          - {zone: A2, dwell_s: 4}
+          - {zone: B2, dwell_s: 6}
+          - {zone: B3, dwell_s: 5}
+
+  two_people_walking_paths:
+    type: trajectory
+    description: >-
+      Two people walking independent loops simultaneously — one following
+      the same A1->A2->B2->B3 loop as one_person_walking_path, the other a
+      separate B1->B2->A2->A1 loop offset in time so they don't dwell in
+      the same zone together. The "2 people" stimulus for the walking demo.
+    transition_s: 0.5
+    paths:
+      - loop: true
+        segments:
+          - {zone: A1, dwell_s: 5}
+          - {zone: A2, dwell_s: 4}
+          - {zone: B2, dwell_s: 6}
+          - {zone: B3, dwell_s: 5}
+      - loop: true
+        phase_offset_s: 10
+        segments:
+          - {zone: B1, dwell_s: 4}
+          - {zone: B2, dwell_s: 5}
+          - {zone: A2, dwell_s: 4}
+          - {zone: A1, dwell_s: 6}

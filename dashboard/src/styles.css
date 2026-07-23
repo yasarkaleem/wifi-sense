@@ -172,11 +172,21 @@ body {
 
 /* --- Zone heatmap ---------------------------------------------------------- */
 
+/* Positioning context for the grid plus the absolutely-positioned person
+   dot/trail on top of it — the dot's left/top percentages are computed
+   against this box, so it must exactly bound the grid (see
+   .zone-heatmap__grid's position: absolute; inset: 0 below). */
+.zone-heatmap__stage {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+}
+
 .zone-heatmap__grid {
   display: grid;
   gap: 6px;
-  flex: 1;
-  min-height: 160px;
+  position: absolute;
+  inset: 0;
 }
 
 .zone-heatmap__cell {
@@ -203,6 +213,51 @@ body {
   font-size: 11px;
   color: var(--ink-secondary);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* The animated "person" — probability-weighted centroid across zones,
+   tweened via a CSS transition on left/top (matching the ~500ms tween
+   this dashboard already uses elsewhere, e.g. .motion-gauge__fill). */
+.zone-heatmap__dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px; /* center on its (left, top) point */
+  border-radius: 50%;
+  background: var(--ink-primary);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  transition:
+    left 500ms ease-out,
+    top 500ms ease-out;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Fading trail of the dot's last ~10 positions — see ZoneHeatmap.jsx. */
+.zone-heatmap__trail-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  transition:
+    left 500ms ease-out,
+    top 500ms ease-out;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.zone-heatmap__legend {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+
+.zone-heatmap__legend strong {
+  color: var(--ink-primary);
 }
 
 /* --- History chart ---------------------------------------------------------- */

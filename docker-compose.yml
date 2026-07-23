@@ -25,20 +25,32 @@ services:
       - PIPELINE_SUB_PORT=5567
       - PIPELINE_PUB_HOST=0.0.0.0
       - PIPELINE_PUB_PORT=5568
+      # The committed "walking person" demo checkpoints (see
+      # services/pipeline/models/, scripts/generate_zone_dataset.py,
+      # scripts/train_demo_models.py) — baked into the image at
+      # /app/models/ by services/pipeline/Dockerfile. Only docker-compose
+      # points at these explicitly; a bare `python -m pipeline` (standalone,
+      # or any other test/deployment) stays presence-only unless it sets
+      # these itself — see pipeline/cli.py.
+      - PIPELINE_COUNTER_CHECKPOINT=/app/models/counter_demo.pt
+      - PIPELINE_LOCALIZER_CHECKPOINT=/app/models/localizer_demo.joblib
     depends_on:
       - ingest
 
   # Emulates a live ESP32 (no hardware needed) so `docker compose up` shows
   # real changing data out of the box — see ../CLAUDE.md's "Standalone +
-  # docker compose rule". Override REPLAY_SCENARIO to try others (see
-  # services/replay/src/replay/scenarios.yaml).
+  # docker compose rule". Defaults to the walking-person trajectory
+  # scenario (see services/replay/src/replay/scenarios.yaml) so the
+  # dashboard's zone heatmap shows a person actually walking the room
+  # rather than standing still. Override REPLAY_SCENARIO to try others —
+  # e.g. REPLAY_SCENARIO=two_people_walking_paths for the 2-person case.
   replay:
     build:
       context: ./services/replay
     depends_on:
       - ingest
     environment:
-      - REPLAY_SCENARIO=one_person_walking
+      - REPLAY_SCENARIO=one_person_walking_path
       - REPLAY_RATE=100
       - REPLAY_TARGET=ingest:5566
     volumes:

@@ -1,11 +1,12 @@
 # dashboard
 
 React app: live people count, a motion-intensity gauge, a room heatmap
-colored by per-zone occupancy probability, and a 10-minute motion-intensity
-history chart — all fed by `services/api` over REST (initial values) and
-WebSocket (live updates). Dark, minimal theme (see `src/colors.js` /
-`src/styles.css`, following the `dataviz` design skill's dark-surface
-palette).
+colored by per-zone occupancy probability (with an animated dot tracking
+the estimated person position and a fading trail behind it), and a
+10-minute motion-intensity history chart — all fed by `services/api` over
+REST (initial values) and WebSocket (live updates). Dark, minimal theme
+(see `src/colors.js` / `src/styles.css`, following the `dataviz` design
+skill's dark-surface palette).
 
 ## How it stays live (`src/useLiveData.js`)
 
@@ -24,7 +25,25 @@ badge in the header flips to "Reconnecting…" and it retries automatically
 `../CLAUDE.md`) — the People Count card and Room Heatmap show an explicit
 "not loaded yet" state with the exact command to enable them, rather than
 blank or fake data. `presence`/`motion_intensity` have no ML dependency
-and are always live.
+and are always live. Via `docker compose up`, both are configured out of
+the box (see "Via docker compose" below), so this state is mainly seen
+running `services/pipeline` standalone without those flags.
+
+## Room heatmap: the animated dot (`src/components/ZoneHeatmap.jsx`, `src/zones.js`)
+
+On top of the existing per-zone grid coloring, a dot renders at the
+probability-weighted centroid of `zones` (`weightedCentroid()` in
+`zones.js` — each zone's grid position weighted by its
+`occupancy_probability`, normalized), moved via a CSS `transition` on
+`left`/`top` (~500ms, matching the tween timing already used elsewhere in
+this dashboard, e.g. `.motion-gauge__fill`) so it glides between positions
+rather than jumping. The last ~10 centroid positions are kept in
+component state and rendered behind it as smaller, progressively more
+transparent dots — a fading trail of recent movement, plain CSS opacity,
+no animation library. A small legend line under the grid shows the
+current single most-likely zone and its probability (`mostLikelyZone()` in
+`zones.js`). The dot hides itself when total probability across all zones
+is ~0 (nobody localized anywhere).
 
 ## Where `api`'s URL comes from (`src/api.js`)
 
@@ -53,11 +72,14 @@ docker compose below.
 docker compose up --build
 ```
 
-Then open **http://localhost:3000**. `replay` streams a synthetic
-`one_person_walking` scenario by default, so the People Count/Motion
-Intensity cards and history chart show real changing data immediately —
-no manual steps. The Room Heatmap stays in its "not calibrated" state
-until you run `python -m pipeline.calibrate` (see the root `CLAUDE.md`).
+Then open **http://localhost:3000**. `replay` streams the
+`one_person_walking_path` trajectory scenario by default (see
+`../services/replay/README.md`) and `pipeline` loads the committed
+"walking person" demo checkpoints automatically (see
+`../services/pipeline/README.md`) — so every card, including the Room
+Heatmap's animated dot, shows real changing data immediately with no
+manual steps. Set `REPLAY_SCENARIO=two_people_walking_paths` to see the
+People Count card switch to 2.
 
 ## Design notes
 

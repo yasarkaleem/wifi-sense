@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from replay.generator import SCHEMA_VERSION, SEQUENCE_NUMBER_WRAP, CSIFrame, generate_frame
+from replay.generator import SCHEMA_VERSION, SEQUENCE_NUMBER_WRAP, CSIFrame, generate_frame, synthesize_recording
 from replay.scenarios import PersonMotion, ScenarioConfig
 
 
@@ -131,3 +131,24 @@ def test_generation_is_deterministic_for_a_given_seed():
     assert frame_a.amplitude == frame_b.amplitude
     assert frame_a.phase == frame_b.phase
     assert frame_a.rssi == frame_b.rssi
+
+
+def test_synthesize_recording_shape():
+    scenario = make_scenario(subcarrier_count=64)
+    amplitude = synthesize_recording(scenario, rate_hz=100.0, duration_s=1.0, seed=1)
+    assert amplitude.shape == (100, 64)
+
+
+def test_synthesize_recording_is_deterministic_for_a_given_seed():
+    scenario = make_scenario(amplitude_noise_std=1.0)
+    a = synthesize_recording(scenario, rate_hz=50.0, duration_s=0.5, seed=3)
+    b = synthesize_recording(scenario, rate_hz=50.0, duration_s=0.5, seed=3)
+    assert (a == b).all()
+
+
+def test_synthesize_recording_matches_generate_frame_for_a_static_scenario():
+    scenario = make_scenario(amplitude_noise_std=0.0, people=())
+    amplitude = synthesize_recording(scenario, rate_hz=10.0, duration_s=0.5, seed=1)
+    # No noise, no people: every row should equal the exact baseline,
+    # matching generate_frame's own no-disturbance behavior directly.
+    assert (amplitude == scenario.amplitude_baseline).all()
